@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Bot Card</title>
+</head>
+<body>
+  <h2>Upload Bot Card</h2>
+  <form id="cardForm">
+    <input type="text" name="print" placeholder="Print ID (Primary Key)" required><br><br>
+    <input type="text" name="name" placeholder="Name"><br><br>
+    <input type="text" name="type" placeholder="Type"><br><br>
+    <input type="number" name="cost" placeholder="Cost"><br><br>
+    <input type="number" name="gem" placeholder="Gem"><br><br>
+    <input type="number" name="power" placeholder="Power"><br><br>
+    <input type="text" name="symbol" placeholder="Symbol"><br><br>
+    <input type="number" name="color" placeholder="Color"><br><br>
+    <input type="text" name="ex" placeholder="EX"><br><br>
+    <input type="text" name="soi" placeholder="SOI"><br><br>
+    <input type="text" name="rare" placeholder="Rare"><br><br>
+    <input type="text" name="dropRate" placeholder="Drop Rate"><br><br>
+    <input type="file" id="imageInput" required><br><br>
+    <button type="submit">Upload</button>
+  </form>
+
+  <p id="status"></p>
+
+  <script type="module">
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+const supabaseUrl = 'https://yyxbitryliuwyipyclax.supabase.co' 
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5eGJpdHJ5bGl1d3lpcHljbGF4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjA0NjIyODYsImV4cCI6MjA3NjAzODI4Nn0.6s71yZBUwIXwuFtqcd0aut0z9CRiKw2U1G2g3m7pylU'  
+const supabase = createClient(supabaseUrl, supabaseKey)
+const bucketName = 'bot-image'
+const folder = 'cards/'                 
+
+const form = document.querySelector('#cardForm')
+const statusEl = document.querySelector('#status')
+
+async function uploadImage(file) {
+  console.log('Uploading file:', file.name)
+
+  // อัปโหลด
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from(bucketName)
+    .upload(folder + file.name, file, { upsert: true })
+
+  console.log('Upload response:', uploadData, uploadError)
+
+  if (uploadError) {
+    console.error('Upload error:', uploadError)
+    statusEl.textContent = 'Upload image failed: ' + uploadError.message
+    return null
+  }
+
+  // ดึง public URL
+  const { data: publicData, error: publicError } = supabase
+    .storage
+    .from(bucketName)
+    .getPublicUrl(folder + file.name)
+
+  console.log('Public URL response:', publicData, publicError)
+
+  if (publicError) {
+    console.error('Get URL error:', publicError)
+    statusEl.textContent = 'Get public URL failed: ' + publicError.message
+    return null
+  }
+
+  return publicData.publicUrl
+}
+
+
+async function insertCard(card) {
+  const { data, error } = await supabase
+    .from('bot_cards') 
+    .insert([card])
+
+  if (error) {
+    console.error(error)
+    statusEl.textContent = 'Insert data failed: ' + error.message
+    return null
+  }
+
+  return data
+}
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault()
+  statusEl.textContent = 'Uploading Image...'
+
+  const fileInput = document.querySelector('#imageInput')
+  const file = fileInput.files[0]
+  if (!file) {
+    statusEl.textContent = 'No file selected'
+    return
+  }
+
+  const imageUrl = await uploadImage(file)
+  if (!imageUrl) return
+
+  statusEl.textContent = 'Uploading Info...'
+
+  const formData = new FormData(form)
+  const card = {
+    print: formData.get('print'),
+    name: formData.get('name'),
+    type: formData.get('type'),
+    cost: formData.get('cost') ? parseInt(formData.get('cost')) : null,
+    gem: formData.get('gem') ? parseInt(formData.get('gem')) : null,
+    power: formData.get('power') ? parseInt(formData.get('power')) : null,
+    symbol: formData.get('symbol'),
+    color: formData.get('color') ? parseInt(formData.get('color')) : null,
+    ex: formData.get('ex'),
+    soi: formData.get('soi'),
+    rare: formData.get('rare'),
+    drop_rate: formData.get('dropRate'),
+    image_url: imageUrl
+  }
+
+  const result = await insertCard(card)
+  if (result) {
+    statusEl.textContent = 'Upload successful!'
+    form.reset()
+  } else {
+    statusEl.textContent += ' (Check console for details)'
+  }
+})
+</script>
+
+</body>
+</html>
